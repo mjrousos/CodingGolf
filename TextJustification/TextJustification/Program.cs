@@ -1,0 +1,1 @@
+﻿class P{static void Main(string[]a){int x,y,z,i,l,k=a.Length,m=0;for(i=0;i<k;x=a[i++].Length,m=x>m?x:m);for(i=0;i<k;i++){var s=a[i].Split();z=s.Length;var o="";if(z<2)o=a[i];else{for(x=0,l=0;x<z;l+=s[x++].Length);x=(m-l)/(z-1);y=(m-l)%(z-1);for (l=0;l<z;o+=s[l]+new string(' ',x)+(y>l++?" ":""));}System.Console.WriteLine(o);}}}
