@@ -11,7 +11,7 @@ namespace XOR_Decrypter
         // Data from http://www.cryptograms.org/letter-frequencies.php
         // Punctuation/numbers estimated (i.e. made up by me :)
         #region English character frequency
-        const double[] EnglishCharFreq = new double[] { 
+        static double[] EnglishCharFreq = new double[] { 
             0.0,	// 0 :  
             0.0,	// 1 : 
             0.0,	// 2 : 
