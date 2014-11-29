@@ -6,12 +6,12 @@ using System.Threading.Tasks;
 
 namespace XOR_Decrypter
 {
-    static class FrequencyTables
+    public static class FrequencyTables
     {
         // Data from http://www.cryptograms.org/letter-frequencies.php
         // Punctuation/numbers estimated (i.e. made up by me :)
         #region English character frequency
-        static double[] EnglishCharFreq = new double[] { 
+        public static double[] EnglishCharFreq = new double[] { 
             0.0,	// 0 :  
             0.0,	// 1 : 
             0.0,	// 2 : 
@@ -267,6 +267,7 @@ namespace XOR_Decrypter
             0.0,	// 252 : 
             0.0,	// 253 : y
             0.0,	// 254 : _
+            0.0,    // 255 : ÿ
         };
         #endregion // English character frequency
     }
