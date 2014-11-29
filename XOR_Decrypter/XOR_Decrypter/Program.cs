@@ -28,7 +28,7 @@ namespace XOR_Decrypter
                 return;
             }
 
-            NarrowPossibilities(0.01);
+            NarrowPossibilities(); //0.018);
 
             // TODO - Check which key characters we know
 
@@ -102,23 +102,60 @@ namespace XOR_Decrypter
         {
             Parallel.For(0, KeyPossibilities.Count, i =>
             {
-                Parallel.For(0, KeyPossibilities[i].Count, j =>
+                if (KeyPossibilities[i].GetSetBits() > 1)
                 {
-                    if (KeyPossibilities[i][j])
+                    Parallel.For(0, KeyPossibilities[i].Count, j =>
                     {
-                        double distance = GetDistanceFromAverageFrequency(j, CharsByKey[i], allowNonVisibleMessageChars);
-                        if (distance > cutoff || distance < 0)
+                        if (KeyPossibilities[i][j])
                         {
-                            KeyPossibilities[i][j] = false;
-                            Log(2, "Key " + i + " = " + (char)(byte)j + ", above cutoff (" + cutoff + ") - Distance = " + distance.ToString());
+                            double distance = GetDistanceFromAverageFrequency(j, CharsByKey[i], allowNonVisibleMessageChars);
+                            if (distance > cutoff || distance < 0)
+                            {
+                                KeyPossibilities[i][j] = false;
+                                Log(2, "Key " + i + " = " + (char)(byte)j + ", above cutoff (" + cutoff + ") - Distance = " + distance.ToString());
+                            }
+                            else
+                            {
+                                Log(2, "Key " + i + " = " + (char)(byte)j + ", below cutoff (" + cutoff + ") - Distance = " + distance.ToString());
+                            }
                         }
-                        else
-                        {
-                            Log(2, "Key " + i + " = " + (char)(byte)j + ", below cutoff (" + cutoff + ") - Distance = " + distance.ToString());
-                        }
-                    }
-                });
+                    });
+                }
             });
+        }
+
+        // Experimental
+        private static void NarrowPossibilities()
+        {
+            Parallel.For(0, KeyPossibilities.Count, i =>
+            {
+                double cutoff = 0.05;
+                while (KeyPossibilities[i].GetSetBits() > 1)
+                {
+                    Parallel.For(0, KeyPossibilities[i].Count, j =>
+                    {
+                        if (KeyPossibilities[i][j])
+                        {
+                            double distance = GetDistanceFromAverageFrequency(j, CharsByKey[i], false);
+                            if (distance > cutoff || distance < 0)
+                            {
+                                KeyPossibilities[i][j] = false;
+                                Log(2, "Key " + i + " = " + (char)(byte)j + ", above cutoff (" + cutoff + ") - Distance = " + distance.ToString());
+                            }
+                            else
+                            {
+                                Log(2, "Key " + i + " = " + (char)(byte)j + ", below cutoff (" + cutoff + ") - Distance = " + distance.ToString());
+                            }
+                        }
+                    });
+                    cutoff -= 0.002;
+                }
+            });
+        }
+
+        private static string Decode(byte[] bytes, byte key)
+        {
+            return new string(bytes.Select(b => (char)(b ^ key)).ToArray());
         }
 
         private static double GetDistanceFromAverageFrequency(int key, byte[] chars, bool allowNonVisibleMessageChars)
@@ -126,7 +163,7 @@ namespace XOR_Decrypter
             int[] counts = new int[256];
             foreach (byte c in chars)
             {
-                counts[c ^ ToLower((byte)key)]++;
+                counts[ToLower((byte)(c ^ (byte)key))]++;
             }
             double ret = 0;
             for (int i = 0; i < 256; i++)
