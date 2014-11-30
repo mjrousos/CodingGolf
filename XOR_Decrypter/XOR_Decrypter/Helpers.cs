@@ -19,4 +19,10 @@ public static class ExtensionMethods
         for (int i = 0; i < a.Count; i++) if (a[i] == b) return i;
         return -1;
     }
+
+    public static int LastIndexOf(this BitArray a, bool b)
+    {
+        for (int i = a.Count - 1; i >= 0; i--) if (a[i] == b) return i;
+        return -1;
+    }
 }

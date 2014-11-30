@@ -7,6 +7,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "XOR_Decrypter", "XOR_Decryp
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "XOR_Encrypter", "XOR_Encrypter\XOR_Encrypter.csproj", "{06E588FC-5729-4CFB-AA40-11A172A2C543}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TextAnalyzer", "TextAnalyzer\TextAnalyzer.csproj", "{D7760F01-3D08-404B-B33B-A4E589C5331B}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -21,6 +23,10 @@ Global
 		{06E588FC-5729-4CFB-AA40-11A172A2C543}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{06E588FC-5729-4CFB-AA40-11A172A2C543}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{06E588FC-5729-4CFB-AA40-11A172A2C543}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D7760F01-3D08-404B-B33B-A4E589C5331B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D7760F01-3D08-404B-B33B-A4E589C5331B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D7760F01-3D08-404B-B33B-A4E589C5331B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D7760F01-3D08-404B-B33B-A4E589C5331B}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

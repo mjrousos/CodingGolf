@@ -4,9 +4,9 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace XOR_Decrypter
+namespace Cryptography
 {
-    public static class FrequencyTables
+    public static partial class FrequencyTables
     {
         // Data from http://www.cryptograms.org/letter-frequencies.php
         // Punctuation/numbers estimated (i.e. made up by me :)

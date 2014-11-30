@@ -1,10 +1,12 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using Cryptography;
 
 namespace XOR_Decrypter
 {
@@ -13,6 +15,7 @@ namespace XOR_Decrypter
         static List<BitArray> KeyPossibilities;
         static List<byte[]> CharsByKey;
         static byte[] Message;
+        static int Verbosity = 0;
 
         static void Main(string[] args)
         {
@@ -28,7 +31,7 @@ namespace XOR_Decrypter
                 return;
             }
 
-            NarrowPossibilities(); //0.018);
+            NarrowPossibilitiesExp(true);
 
             // TODO - Check which key characters we know
 
@@ -36,7 +39,7 @@ namespace XOR_Decrypter
 
             // NarrowPossibilities more, perhaps?
 
-            SelectRandomKeys();
+      //      SelectRandomKeys();
 
             string key = GetKey(KeyPossibilities);
             Console.WriteLine();
@@ -63,7 +66,7 @@ namespace XOR_Decrypter
             StringBuilder ret = new StringBuilder();
             for (int i = 0; i < KeyPossibilities.Count; i++)
             {
-                ret.Append((char)(byte)KeyPossibilities[i].IndexOf(true));
+                ret.Append((char)(byte)KeyPossibilities[i].LastIndexOf(true));
             }
             return ret.ToString();
         }
@@ -102,52 +105,52 @@ namespace XOR_Decrypter
         {
             Parallel.For(0, KeyPossibilities.Count, i =>
             {
-                if (KeyPossibilities[i].GetSetBits() > 1)
-                {
-                    Parallel.For(0, KeyPossibilities[i].Count, j =>
-                    {
-                        if (KeyPossibilities[i][j])
-                        {
-                            double distance = GetDistanceFromAverageFrequency(j, CharsByKey[i], allowNonVisibleMessageChars);
-                            if (distance > cutoff || distance < 0)
-                            {
-                                KeyPossibilities[i][j] = false;
-                                Log(2, "Key " + i + " = " + (char)(byte)j + ", above cutoff (" + cutoff + ") - Distance = " + distance.ToString());
-                            }
-                            else
-                            {
-                                Log(2, "Key " + i + " = " + (char)(byte)j + ", below cutoff (" + cutoff + ") - Distance = " + distance.ToString());
-                            }
-                        }
-                    });
-                }
+                NarrowPossibility(i, cutoff, allowNonVisibleMessageChars);
             });
         }
 
+        private static void NarrowPossibility(int i, double cutoff, bool allowNonVisibleMessageChars)
+        {
+            if (KeyPossibilities[i].GetSetBits() > 1)
+            {
+                ConcurrentBag<int> indecesRemoved = new ConcurrentBag<int>();
+                Parallel.For(0, KeyPossibilities[i].Count, j =>
+                {
+                    if (KeyPossibilities[i][j])
+                    {
+                        double distance = GetDistanceFromAverageFrequency(j, CharsByKey[i], allowNonVisibleMessageChars);
+                        if (distance > cutoff || distance < 0)
+                        {
+                            KeyPossibilities[i][j] = false;
+                            indecesRemoved.Add(j);
+                            Log(2, "Key " + i + " = " + (char)(byte)j + ", above cutoff (" + cutoff + ") - Distance = " + distance.ToString());
+                        }
+                        else
+                        {
+                            Log(2, "Key " + i + " = " + (char)(byte)j + ", below cutoff (" + cutoff + ") - Distance = " + distance.ToString());
+                        }
+                    }
+                });
+                // If we removed all possibilities, then roll back
+                if (KeyPossibilities[i].GetSetBits() == 0)
+                {
+                    foreach (int j in indecesRemoved)
+                    {
+                        KeyPossibilities[i][j] = true;
+                    }
+                }
+            }
+        }
+
         // Experimental
-        private static void NarrowPossibilities()
+        private static void NarrowPossibilitiesExp(bool allowNonVisisbleMessageChars)
         {
             Parallel.For(0, KeyPossibilities.Count, i =>
             {
                 double cutoff = 0.05;
-                while (KeyPossibilities[i].GetSetBits() > 1)
+                while (KeyPossibilities[i].GetSetBits() > 1 && cutoff > 0)
                 {
-                    Parallel.For(0, KeyPossibilities[i].Count, j =>
-                    {
-                        if (KeyPossibilities[i][j])
-                        {
-                            double distance = GetDistanceFromAverageFrequency(j, CharsByKey[i], false);
-                            if (distance > cutoff || distance < 0)
-                            {
-                                KeyPossibilities[i][j] = false;
-                                Log(2, "Key " + i + " = " + (char)(byte)j + ", above cutoff (" + cutoff + ") - Distance = " + distance.ToString());
-                            }
-                            else
-                            {
-                                Log(2, "Key " + i + " = " + (char)(byte)j + ", below cutoff (" + cutoff + ") - Distance = " + distance.ToString());
-                            }
-                        }
-                    });
+                    NarrowPossibility(i, cutoff, allowNonVisisbleMessageChars);
                     cutoff -= 0.002;
                 }
             });
@@ -252,7 +255,10 @@ namespace XOR_Decrypter
         private static void Log(int level, string msg)
         {
             // TODO : Check level against desired verbosity
-            Console.WriteLine(DateTime.Now.ToString("[hh:mm:ss.f] ") + msg);
+            if (Verbosity >= level)
+            {
+                Console.WriteLine(DateTime.Now.ToString("[hh:mm:ss.f] ") + msg);
+            }
         }
     }
 }
