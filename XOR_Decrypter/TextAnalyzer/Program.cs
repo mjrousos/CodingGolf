@@ -24,20 +24,14 @@ namespace TextAnalyzer
             }
 
             long totalChars = 0;
-            Dictionary<byte, int> charCount = new Dictionary<byte, int>();
-            Dictionary<byte, Dictionary<byte, int>> nextCharCount = new Dictionary<byte, Dictionary<byte, int>>(); ;
-            Dictionary<byte, Dictionary<byte, int>> prevCharCount = new Dictionary<byte, Dictionary<byte, int>>(); ;
-
+            int[] charCount = new int[255];
+            int[][] nextCharCount = new int[255][];
+            int[][] prevCharCount = new int[255][];
+            
             for (byte i = 0; i < 255; i++)
             {
-                charCount.Add(i, 0);
-                nextCharCount.Add(i, new Dictionary<byte, int>());
-                prevCharCount.Add(i, new Dictionary<byte, int>());
-                for (byte j = 0; j < 255; j++)
-                {
-                    nextCharCount[i].Add(j, 0);
-                    prevCharCount[i].Add(j, 0);
-                }
+                nextCharCount[i] = new int[255];
+                prevCharCount[i] = new int[255];
             }
 
             foreach (string file in Directory.GetFiles(args[0]))
@@ -76,7 +70,82 @@ namespace TextAnalyzer
 
             using (StreamWriter sw = new StreamWriter(new FileStream(output, FileMode.Create, FileAccess.ReadWrite)))
             {
-                
+                sw.WriteLine(@"
+// Data from text analysis of files in " + Path.GetFileName(args[0]) + @"
+
+using System;
+using System.Collections.Generic;
+
+namespace Cryptography
+{
+    public static partial class FrequencyTables
+    {
+        #region Single char frequency
+        public static double[] EnglishGutenbergChraFreq = new double[] {");
+        for (int i = 0; i < charCount.Length; i++)
+        {
+            sw.WriteLine("            " + (((double)charCount[i]) / totalChars).ToString("F5") + ",  // " + i.ToString() + " : " + (char)(byte)i);
+        }
+        sw.WriteLine(@"        }
+        #endregion Single char frequency
+
+        #region Next char frequency
+        public static double[][] EnglishGutenbergNextCharFreq = new double[][] {");
+        for (int i = 0; i < 255; i++)
+        {
+            int count = nextCharCount[i].Sum();
+            sw.WriteLine(@"
+            // Following " + i.ToString());
+            if (count == 0)
+            {
+                sw.WriteLine("            null,");
+            }
+            else
+            {
+                sw.WriteLine(@"            new double[] {");
+                for (int j = 0; j < 255; j++)
+                {
+                    sw.WriteLine("                " + (((double)nextCharCount[i][j]) / count).ToString("F5") + ",  // " + j.ToString());
+                }
+                sw.WriteLine(@"
+            },");
+            }
+        }
+        sw.WriteLine(@"
+        };
+        #endregion Next char frequency");
+
+        sw.WriteLine(@"
+        #region Prev char frequency
+        public static double[][] EnglishGutenbergPrevCharFreq = new double[][] {");
+        for (int i = 0; i < 255; i++)
+        {
+            int count = prevCharCount[i].Sum();
+            sw.WriteLine(@"
+            // Preceding " + i.ToString());
+            if (count == 0)
+            {
+                sw.WriteLine("            null,");
+            }
+            else
+            {
+                sw.WriteLine(@"            new double[] {");
+                for (int j = 0; j < 255; j++)
+                {
+                    sw.WriteLine("                " + (((double)prevCharCount[i][j]) / count).ToString("F5") + ",  // " + j.ToString());
+                }
+                sw.WriteLine(@"
+            },");
+            }
+        }
+        sw.WriteLine(@"
+        };
+        #endregion Prev char frequency");
+
+        sw.WriteLine(@"
+    }
+}
+");
             }
 
             Console.WriteLine("Output written to " + output);

@@ -8,6 +8,10 @@ namespace Cryptography
 {
     public static partial class FrequencyTables
     {
+        public static double[][] test = new double[][] {
+            new double[] {1,2, 3},
+        };
+
         // Data from http://www.cryptograms.org/letter-frequencies.php
         // Punctuation/numbers estimated (i.e. made up by me :)
         #region English character frequency
