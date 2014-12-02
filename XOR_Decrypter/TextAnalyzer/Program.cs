@@ -24,14 +24,14 @@ namespace TextAnalyzer
             }
 
             long totalChars = 0;
-            int[] charCount = new int[255];
-            int[][] nextCharCount = new int[255][];
-            int[][] prevCharCount = new int[255][];
+            int[] charCount = new int[256];
+            int[][] nextCharCount = new int[256][];
+            int[][] prevCharCount = new int[256][];
             
-            for (byte i = 0; i < 255; i++)
+            for (int i = 0; i <= 255; i++)
             {
-                nextCharCount[i] = new int[255];
-                prevCharCount[i] = new int[255];
+                nextCharCount[i] = new int[256];
+                prevCharCount[i] = new int[256];
             }
 
             foreach (string file in Directory.GetFiles(args[0]))
@@ -84,14 +84,14 @@ namespace Cryptography
         public static double[] EnglishGutenbergChraFreq = new double[] {");
         for (int i = 0; i < charCount.Length; i++)
         {
-            sw.WriteLine("            " + (((double)charCount[i]) / totalChars).ToString("F5") + ",  // " + i.ToString() + " : " + (char)(byte)i);
+            sw.WriteLine("            " + (((double)charCount[i]) / totalChars).ToString("F5") + ",  // " + i.ToString());
         }
-        sw.WriteLine(@"        }
+        sw.WriteLine(@"        };
         #endregion Single char frequency
 
         #region Next char frequency
         public static double[][] EnglishGutenbergNextCharFreq = new double[][] {");
-        for (int i = 0; i < 255; i++)
+        for (int i = 0; i <= 255; i++)
         {
             int count = nextCharCount[i].Sum();
             sw.WriteLine(@"
@@ -103,7 +103,7 @@ namespace Cryptography
             else
             {
                 sw.WriteLine(@"            new double[] {");
-                for (int j = 0; j < 255; j++)
+                for (int j = 0; j <= 255; j++)
                 {
                     sw.WriteLine("                " + (((double)nextCharCount[i][j]) / count).ToString("F5") + ",  // " + j.ToString());
                 }
@@ -118,7 +118,7 @@ namespace Cryptography
         sw.WriteLine(@"
         #region Prev char frequency
         public static double[][] EnglishGutenbergPrevCharFreq = new double[][] {");
-        for (int i = 0; i < 255; i++)
+        for (int i = 0; i <= 255; i++)
         {
             int count = prevCharCount[i].Sum();
             sw.WriteLine(@"
@@ -130,7 +130,7 @@ namespace Cryptography
             else
             {
                 sw.WriteLine(@"            new double[] {");
-                for (int j = 0; j < 255; j++)
+                for (int j = 0; j <= 255; j++)
                 {
                     sw.WriteLine("                " + (((double)prevCharCount[i][j]) / count).ToString("F5") + ",  // " + j.ToString());
                 }

@@ -41,6 +41,7 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="EnglishGutenbergAnalysis.cs" />
     <Compile Include="FrequencyTables.cs" />
     <Compile Include="Helpers.cs" />
     <Compile Include="Program.cs" />

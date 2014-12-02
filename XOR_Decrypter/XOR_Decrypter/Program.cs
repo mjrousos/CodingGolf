@@ -19,38 +19,47 @@ namespace XOR_Decrypter
 
         static void Main(string[] args)
         {
-            Console.WriteLine("-----------------");
-            Console.WriteLine("- XOR Decrypter -");
-            Console.WriteLine("- v0.1; MikeRou -");
-            Console.WriteLine("-----------------");
-            Console.WriteLine();
-
-            if (!ParseArgs(args))
+            try
             {
-                ShowUsage();
-                return;
+                Console.WriteLine("-----------------");
+                Console.WriteLine("- XOR Decrypter -");
+                Console.WriteLine("- v0.1; MikeRou -");
+                Console.WriteLine("-----------------");
+                Console.WriteLine();
+
+                if (!ParseArgs(args))
+                {
+                    ShowUsage();
+                    return;
+                }
+
+                // Cut any obviously incorrect keys based on a coarse cut
+                RemoveLowFreqMatches(0.01, FrequencyTables.EnglishGutenbergChraFreq);
+                // Further narrow based on sequences
+                RemoveLowFrequencySequences(0.06, FrequencyTables.EnglishGutenbergNextCharFreq, FrequencyTables.EnglishGutenbergPrevCharFreq);
+
+                // Cut with a finer grain
+                RemoveLowFreqMatches(0.006, FrequencyTables.EnglishGutenbergChraFreq);
+                RemoveLowFrequencySequences(0.04, FrequencyTables.EnglishGutenbergNextCharFreq, FrequencyTables.EnglishGutenbergPrevCharFreq);
+
+                // Make our best guess
+                RemoveLowFreqMatches(0.000, FrequencyTables.EnglishGutenbergChraFreq);
+
+                string key = GetKey(KeyPossibilities);
+                Console.WriteLine();
+                Console.WriteLine("Message:");
+                Console.WriteLine(Decode(Message, key.ToCharArray().Select(c => (byte)c).ToArray()));
+                Console.WriteLine();
+                Console.WriteLine("Key:");
+                Console.WriteLine(key);
             }
-
-            NarrowPossibilitiesExp(true);
-
-            // TODO - Check which key characters we know
-
-            // If needed, check letters after/before other letters
-
-            // NarrowPossibilities more, perhaps?
-
-      //      SelectRandomKeys();
-
-            string key = GetKey(KeyPossibilities);
-            Console.WriteLine();
-            Console.WriteLine("Message:");
-            Console.WriteLine(Decoder(Message, key.ToCharArray().Select(c => (byte)c).ToArray()));
-            Console.WriteLine();
-            Console.WriteLine("Key:");
-            Console.WriteLine(key);
+            catch (Exception exc)
+            {
+                Console.WriteLine(exc.GetType() + ": " + exc.Message);
+            }
         }
 
-        private static string Decoder(byte[] msg, byte[] keyBytes)
+        private static string Decode(byte[] msg, byte[] keyBytes)
         {
             StringBuilder ret = new StringBuilder();
             for (int i = 0; i < msg.Length; i++)
@@ -71,6 +80,7 @@ namespace XOR_Decrypter
             return ret.ToString();
         }
 
+#if FALSE
         // Set all to false except for one random true
         private static void SelectRandomKeys()
         {
@@ -100,68 +110,198 @@ namespace XOR_Decrypter
                 }
             }
         }
+#endif // FALSE
 
-        private static void NarrowPossibilities(double cutoff, bool allowNonVisibleMessageChars = false)
+        private static void RemoveLowFrequencySequences(double resolution, double[][] nextFreqTable, double[][] prevFreqTable)
         {
-            Parallel.For(0, KeyPossibilities.Count, i =>
+            for (int i = 0; i < KeyPossibilities.Count; i++)
             {
-                NarrowPossibility(i, cutoff, allowNonVisibleMessageChars);
-            });
-        }
-
-        private static void NarrowPossibility(int i, double cutoff, bool allowNonVisibleMessageChars)
-        {
-            if (KeyPossibilities[i].GetSetBits() > 1)
-            {
-                ConcurrentBag<int> indecesRemoved = new ConcurrentBag<int>();
-                Parallel.For(0, KeyPossibilities[i].Count, j =>
+                if (KeyPossibilities[i].GetSetBits() > 1)
                 {
-                    if (KeyPossibilities[i][j])
+                    int prevIndex = i - 1;
+                    if (prevIndex < 0) prevIndex = KeyPossibilities.Count - 1;
+                    if (nextFreqTable != null && KeyPossibilities[prevIndex].GetSetBits() == 1)
                     {
-                        double distance = GetDistanceFromAverageFrequency(j, CharsByKey[i], allowNonVisibleMessageChars);
-                        if (distance > cutoff || distance < 0)
-                        {
-                            KeyPossibilities[i][j] = false;
-                            indecesRemoved.Add(j);
-                            Log(2, "Key " + i + " = " + (char)(byte)j + ", above cutoff (" + cutoff + ") - Distance = " + distance.ToString());
-                        }
-                        else
-                        {
-                            Log(2, "Key " + i + " = " + (char)(byte)j + ", below cutoff (" + cutoff + ") - Distance = " + distance.ToString());
-                        }
+                        RemoveLowFreqNextMatches(prevIndex, i, resolution, FrequencyTables.EnglishGutenbergNextCharFreq);
                     }
-                });
-                // If we removed all possibilities, then roll back
-                if (KeyPossibilities[i].GetSetBits() == 0)
-                {
-                    foreach (int j in indecesRemoved)
+                    // Perhaps we've already found a key and don't need to check prev
+                    if (KeyPossibilities[i].GetSetBits() == 1) continue;
+
+                    int nextIndex = i + 1;
+                    if (nextIndex == KeyPossibilities.Count) nextIndex = 0;
+                    if (prevFreqTable != null && (i == KeyPossibilities.Count - 1 || KeyPossibilities[i + 1].GetSetBits() == 1))
                     {
-                        KeyPossibilities[i][j] = true;
+                        RemoveLowFreqPrevMatches(i, nextIndex, resolution, FrequencyTables.EnglishGutenbergPrevCharFreq);
                     }
                 }
             }
         }
 
-        // Experimental
-        private static void NarrowPossibilitiesExp(bool allowNonVisisbleMessageChars)
+        private static void RemoveLowFreqNextMatches(int prevIndex, int nextIndex, double resolution, double[][] freqTable)
+        {
+            // Assert prevIndex has 1 bit set and nextIndex has > 1 bit set
+            byte prevKey = (byte)KeyPossibilities[prevIndex].IndexOf(true);
+            ConcurrentDictionary<int, double> likelihoods = new ConcurrentDictionary<int, double>();
+            Parallel.For(0, KeyPossibilities[nextIndex].Count, i =>
+            {
+                if (KeyPossibilities[nextIndex][i])
+                {
+                    double likelihood = 0;
+                    int lCount = 0;
+                    for (int j = nextIndex; j < Message.Length; j += KeyPossibilities.Count)
+                    {
+                        byte prev = ToLower(j == 0 ? (byte)' ' : (byte)(prevKey ^ Message[j - 1]));
+                        if (freqTable[prev] != null)
+                        {
+                            likelihood += freqTable[prev][i ^ ToLower(Message[j])];
+                            lCount++;
+                        }
+                    }
+                    likelihood /= lCount;
+                    likelihoods.AddOrUpdate(i, likelihood, (a, b) => { throw new InvalidOperationException("Unexpected collission");});
+                }
+            });
+
+            double cutoff = likelihoods.Values.Max() - resolution;
+            foreach (var kvp in likelihoods.Where(k => k.Value < cutoff))
+            {
+                KeyPossibilities[nextIndex][kvp.Key] = false;
+            }
+        }
+
+        private static void RemoveLowFreqPrevMatches(int prevIndex, int nextIndex, double resolution, double[][] freqTable)
+        {
+            // Assert nextIndex has 1 bit set and prevIndex has > 1 bit set
+            byte nextKey = (byte)KeyPossibilities[nextIndex].IndexOf(true);
+            ConcurrentDictionary<int, double> likelihoods = new ConcurrentDictionary<int, double>();
+            Parallel.For(0, KeyPossibilities[prevIndex].Count, i =>
+            {
+                if (KeyPossibilities[prevIndex][i])
+                {
+                    double likelihood = 0;
+                    int lCount = 0;
+                    for (int j = prevIndex; j < Message.Length; j += KeyPossibilities.Count)
+                    {
+                        byte next = ToLower(j == Message.Length - 1 ? (byte)' ' : (byte)(nextKey ^ Message[j + 1]));
+                        if (freqTable[next] != null)
+                        {
+                            likelihood += freqTable[next][i ^ ToLower(Message[j])];
+                            lCount++;
+                        }
+                    }
+                    likelihood /= lCount;
+                    likelihoods.AddOrUpdate(i, likelihood, (a, b) => { throw new InvalidOperationException("Unexpected collission"); });
+                }
+            });
+
+            double cutoff = likelihoods.Values.Max() - resolution;
+            foreach (var kvp in likelihoods.Where(k => k.Value < cutoff))
+            {
+                KeyPossibilities[prevIndex][kvp.Key] = false;
+            }
+        }
+
+        // Remove possibilities with a distance more than 'resolution' away from the most likely posibility
+        private static void RemoveLowFreqMatches(double resolution, double[] freqTable)
         {
             Parallel.For(0, KeyPossibilities.Count, i =>
             {
-                double cutoff = 0.05;
-                while (KeyPossibilities[i].GetSetBits() > 1 && cutoff > 0)
-                {
-                    NarrowPossibility(i, cutoff, allowNonVisisbleMessageChars);
-                    cutoff -= 0.002;
-                }
+                RemoveLowFreqMatches(i, resolution, freqTable);
             });
         }
+
+        private static void RemoveLowFreqMatches(int i, double resolution, double[] freqTable)
+        {
+            if (KeyPossibilities[i].GetSetBits() > 1)
+            {
+                ConcurrentDictionary<int, double> distances = new ConcurrentDictionary<int, double>();
+                Parallel.For(0, KeyPossibilities[i].Count, j =>
+                {
+                    if (KeyPossibilities[i][j])
+                    {
+                        double distance = GetDistanceFromAverageFrequency(j, CharsByKey[i], true, freqTable);
+                        if (distance < 0)
+                        {
+                            KeyPossibilities[i][j] = false;
+                            Log(2, "Key " + i + " = " + (char)(byte)j + ", removed because it decodes invalid characters ");
+                        }
+                        else
+                        {
+                            distances.AddOrUpdate(j, distance, (a, b) => { throw new InvalidOperationException("Unexpected collission"); });
+                        }
+                    }
+                });
+                double cutoff = distances.Values.Min() + resolution;
+                foreach (var kvp in distances.Where(k => k.Value > cutoff))
+                {
+                    KeyPossibilities[i][kvp.Key] = false;
+                }
+            }
+        }
+
+#if FALSE
+                 private static void NarrowPossibilities(double cutoff, bool allowNonVisibleMessageChars = false)
+                {
+                    Parallel.For(0, KeyPossibilities.Count, i =>
+                    {
+                        NarrowPossibility(i, cutoff, allowNonVisibleMessageChars);
+                    });
+                }
+
+                private static void NarrowPossibility(int i, double cutoff, bool allowNonVisibleMessageChars)
+                {
+                    if (KeyPossibilities[i].GetSetBits() > 1)
+                    {
+                        ConcurrentBag<int> indecesRemoved = new ConcurrentBag<int>();
+                        Parallel.For(0, KeyPossibilities[i].Count, j =>
+                        {
+                            if (KeyPossibilities[i][j])
+                            {
+                                double distance = GetDistanceFromAverageFrequency(j, CharsByKey[i], allowNonVisibleMessageChars);
+                                if (distance > cutoff || distance < 0)
+                                {
+                                    KeyPossibilities[i][j] = false;
+                                    indecesRemoved.Add(j);
+                                    Log(2, "Key " + i + " = " + (char)(byte)j + ", above cutoff (" + cutoff + ") - Distance = " + distance.ToString());
+                                }
+                                else
+                                {
+                                    Log(2, "Key " + i + " = " + (char)(byte)j + ", below cutoff (" + cutoff + ") - Distance = " + distance.ToString());
+                                }
+                            }
+                        });
+                        // If we removed all possibilities, then roll back
+                        if (KeyPossibilities[i].GetSetBits() == 0)
+                        {
+                            foreach (int j in indecesRemoved)
+                            {
+                                KeyPossibilities[i][j] = true;
+                            }
+                        }
+                    }
+                }
+
+                // Experimental
+                private static void NarrowPossibilitiesExp(bool allowNonVisisbleMessageChars)
+                {
+                    Parallel.For(0, KeyPossibilities.Count, i =>
+                    {
+                        double cutoff = 0.05;
+                        while (KeyPossibilities[i].GetSetBits() > 1 && cutoff > 0)
+                        {
+                            NarrowPossibility(i, cutoff, allowNonVisisbleMessageChars);
+                            cutoff -= 0.002;
+                        }
+                    });
+                }
 
         private static string Decode(byte[] bytes, byte key)
         {
             return new string(bytes.Select(b => (char)(b ^ key)).ToArray());
         }
+#endif // FALSE
 
-        private static double GetDistanceFromAverageFrequency(int key, byte[] chars, bool allowNonVisibleMessageChars)
+        private static double GetDistanceFromAverageFrequency(int key, byte[] chars, bool allowNonVisibleMessageChars, double[] freqTable)
         {
             int[] counts = new int[256];
             foreach (byte c in chars)
@@ -178,7 +318,7 @@ namespace XOR_Decrypter
                 }
 
                 double freq = ((double)counts[i]) / chars.Length;
-                ret += Math.Pow(freq - FrequencyTables.EnglishCharFreq[i], 2);
+                ret += Math.Pow(freq - freqTable[i], 2);
             }
 
             ret = Math.Sqrt(ret / counts.Length);
