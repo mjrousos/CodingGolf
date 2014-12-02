@@ -34,16 +34,16 @@ namespace XOR_Decrypter
                 }
 
                 // Cut any obviously incorrect keys based on a coarse cut
-                RemoveLowFreqMatches(0.01, FrequencyTables.EnglishGutenbergChraFreq);
+                RemoveLowFreqMatches(0.004, FrequencyTables.EnglishCharFreq);
                 // Further narrow based on sequences
                 RemoveLowFrequencySequences(0.06, FrequencyTables.EnglishGutenbergNextCharFreq, FrequencyTables.EnglishGutenbergPrevCharFreq);
 
                 // Cut with a finer grain
-                RemoveLowFreqMatches(0.006, FrequencyTables.EnglishGutenbergChraFreq);
-                RemoveLowFrequencySequences(0.04, FrequencyTables.EnglishGutenbergNextCharFreq, FrequencyTables.EnglishGutenbergPrevCharFreq);
+                RemoveLowFreqMatches(0.002, FrequencyTables.EnglishCharFreq);
+                RemoveLowFrequencySequences(0.03, FrequencyTables.EnglishGutenbergNextCharFreq, FrequencyTables.EnglishGutenbergPrevCharFreq);
 
                 // Make our best guess
-                RemoveLowFreqMatches(0.000, FrequencyTables.EnglishGutenbergChraFreq);
+                RemoveLowFreqMatches(0.000, FrequencyTables.EnglishCharFreq);
 
                 string key = GetKey(KeyPossibilities);
                 Console.WriteLine();
@@ -64,6 +64,12 @@ namespace XOR_Decrypter
             StringBuilder ret = new StringBuilder();
             for (int i = 0; i < msg.Length; i++)
             {
+#if MANUAL_HELP
+                if (keyBytes[i % keyBytes.Length] == (byte)'_') 
+                    ret.Append("_");
+                else 
+#endif
+
                 ret.Append((char)(msg[i] ^ keyBytes[i % keyBytes.Length]));
             }
             return ret.ToString();
@@ -71,16 +77,24 @@ namespace XOR_Decrypter
 
         private static string GetKey(List<BitArray> KeyPossibilities)
         {
-            // TODO : Warn if there are multiple possibilities for a key
             StringBuilder ret = new StringBuilder();
             for (int i = 0; i < KeyPossibilities.Count; i++)
             {
-                ret.Append((char)(byte)KeyPossibilities[i].LastIndexOf(true));
+#if MANUAL_HELP
+                int p = KeyPossibilities[i].GetSetBits();
+                if (p > 1)
+                {
+                    ret.Append("_");
+                    // throw new InvalidOperationException("Multiple key options! " + p.ToString());
+                }
+                else
+#endif
+                ret.Append((char)(byte)KeyPossibilities[i].IndexOf(true));
             }
             return ret.ToString();
         }
 
-#if FALSE
+#if FALSE // Old code; now unused
         // Set all to false except for one random true
         private static void SelectRandomKeys()
         {
@@ -139,7 +153,7 @@ namespace XOR_Decrypter
 
         private static void RemoveLowFreqNextMatches(int prevIndex, int nextIndex, double resolution, double[][] freqTable)
         {
-            // Assert prevIndex has 1 bit set and nextIndex has > 1 bit set
+            // TODO : Assert prevIndex has 1 bit set and nextIndex has > 1 bit set
             byte prevKey = (byte)KeyPossibilities[prevIndex].IndexOf(true);
             ConcurrentDictionary<int, double> likelihoods = new ConcurrentDictionary<int, double>();
             Parallel.For(0, KeyPossibilities[nextIndex].Count, i =>
@@ -158,7 +172,7 @@ namespace XOR_Decrypter
                         }
                     }
                     likelihood /= lCount;
-                    likelihoods.AddOrUpdate(i, likelihood, (a, b) => { throw new InvalidOperationException("Unexpected collission");});
+                    likelihoods.AddOrUpdate(i, likelihood, (a, b) => { throw new InvalidOperationException("Unexpected collission"); });
                 }
             });
 
@@ -171,7 +185,7 @@ namespace XOR_Decrypter
 
         private static void RemoveLowFreqPrevMatches(int prevIndex, int nextIndex, double resolution, double[][] freqTable)
         {
-            // Assert nextIndex has 1 bit set and prevIndex has > 1 bit set
+            // TODO : Assert nextIndex has 1 bit set and prevIndex has > 1 bit set
             byte nextKey = (byte)KeyPossibilities[nextIndex].IndexOf(true);
             ConcurrentDictionary<int, double> likelihoods = new ConcurrentDictionary<int, double>();
             Parallel.For(0, KeyPossibilities[prevIndex].Count, i =>
@@ -202,15 +216,15 @@ namespace XOR_Decrypter
         }
 
         // Remove possibilities with a distance more than 'resolution' away from the most likely posibility
-        private static void RemoveLowFreqMatches(double resolution, double[] freqTable)
+        private static void RemoveLowFreqMatches(double resolution, double[] freqTable, bool allowNonVisisbleCharacters = true)
         {
             Parallel.For(0, KeyPossibilities.Count, i =>
             {
-                RemoveLowFreqMatches(i, resolution, freqTable);
+                RemoveLowFreqMatches(i, resolution, freqTable, allowNonVisisbleCharacters);
             });
         }
 
-        private static void RemoveLowFreqMatches(int i, double resolution, double[] freqTable)
+        private static void RemoveLowFreqMatches(int i, double resolution, double[] freqTable, bool allowNonVisisbleCharacters = true)
         {
             if (KeyPossibilities[i].GetSetBits() > 1)
             {
@@ -219,7 +233,7 @@ namespace XOR_Decrypter
                 {
                     if (KeyPossibilities[i][j])
                     {
-                        double distance = GetDistanceFromAverageFrequency(j, CharsByKey[i], true, freqTable);
+                        double distance = GetDistanceFromAverageFrequency(j, CharsByKey[i], allowNonVisisbleCharacters, freqTable);
                         if (distance < 0)
                         {
                             KeyPossibilities[i][j] = false;
@@ -239,7 +253,7 @@ namespace XOR_Decrypter
             }
         }
 
-#if FALSE
+#if FALSE // Old code; now unused
                  private static void NarrowPossibilities(double cutoff, bool allowNonVisibleMessageChars = false)
                 {
                     Parallel.For(0, KeyPossibilities.Count, i =>
@@ -394,7 +408,6 @@ namespace XOR_Decrypter
 
         private static void Log(int level, string msg)
         {
-            // TODO : Check level against desired verbosity
             if (Verbosity >= level)
             {
                 Console.WriteLine(DateTime.Now.ToString("[hh:mm:ss.f] ") + msg);
